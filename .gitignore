@@ -1,25 +1,25 @@
 # Dependencies
-node_modules/
-package-lock.json
+*node_modules/
+*package-lock.json
 
 # Hardhat files
-cache/
-artifacts/
-typechain-types/
+*cache/
+*artifacts/
+*typechain-types/
 
 # Environment variables
-.env
-.env.local
+**/.env
+**/.env.local
 
 # IDE
-.vscode/
-.idea/
+*.vscode/
+*.idea/
 *.swp
 *.swo
 
 # OS
-.DS_Store
-Thumbs.db
+*.DS_Store
+*Thumbs.db
 
 # Logs
 *.log
