@@ -1,13 +1,15 @@
-# 📋 Récapitulatif du Projet BlockLucky
+# Récapitulatif du Projet BlockLucky
 
-## 🎯 Vue d'ensemble
-BlockLucky est un smart contract de loterie simple déployé sur la blockchain Ethereum. Il permet aux utilisateurs d'acheter des tickets et à un propriétaire (owner) de tirer au sort un gagnant qui remporte toute la cagnotte.
+## Vue d'ensemble
+
+BlockLucky est un smart contract de loterie simple déployé sur la blockchain Ethereum. Les utilisateurs peuvent acheter des tickets et un propriétaire (owner) peut tirer au sort un gagnant qui remporte toute la cagnotte.
 
 ---
 
-## 🚀 Phase 1 : Initialisation du Projet
+## Phase 1 : Initialisation du Projet
 
-### 1.1 Structure du projet
+### Structure du projet
+
 ```
 BlockLucky/
 ├── contracts/          # Smart contracts Solidity
@@ -20,22 +22,24 @@ BlockLucky/
     └── extensions.json
 ```
 
-### 1.2 Installation des dépendances
+### Installation des dépendances
+
 - **Hardhat** : Framework de développement Ethereum
 - **@nomicfoundation/hardhat-toolbox** : Outils pour compiler, tester et déployer
 - **Chai** : Bibliothèque d'assertions pour les tests
 - **ethers.js** : Bibliothèque pour interagir avec la blockchain
 
 **Problèmes rencontrés et résolus :**
-- ❌ Projet sans `package.json` → ✅ Initialisé avec `npm init -y`
-- ❌ Tentative ESM (type: "module") → ✅ Revenu à CommonJS (compatibilité Hardhat 2.x)
-- ❌ Versions incompatibles → ✅ Utilisé Hardhat 2.27.0 + Toolbox 3.0.0
+
+- Projet sans `package.json` → Initialisé avec `npm init -y`
+- Tentative ESM (type: "module") → Revenu à CommonJS (compatibilité Hardhat 2.x)
+- Versions incompatibles → Utilisé Hardhat 2.27.0 + Toolbox 3.0.0
 
 ---
 
-## 📝 Phase 2 : Le Smart Contract (BlockLucky.sol)
+## Phase 2 : Le Smart Contract (BlockLucky.sol)
 
-### 2.1 Variables d'État
+### Variables d'État
 
 ```solidity
 address public owner;              // Propriétaire du contrat
@@ -45,12 +49,13 @@ address public lastWinner;         // Dernier gagnant
 ```
 
 **Logique :**
+
 - `owner` : Initialisé au déploiement avec `msg.sender` (celui qui déploie)
 - `ticketPrice` : Fixé à 0.1 ether dans le constructeur
 - `players` : Tableau dynamique qui s'agrandit à chaque achat de ticket
 - `lastWinner` : Mis à jour après chaque tirage
 
-### 2.2 Modifier `onlyOwner`
+### Modifier `onlyOwner`
 
 ```solidity
 modifier onlyOwner() {
@@ -60,11 +65,12 @@ modifier onlyOwner() {
 ```
 
 **Logique :**
+
 - Vérifie que l'appelant est le propriétaire
 - `_` = point d'injection où le code de la fonction est exécuté
 - Utilisé pour protéger `pickWinner()` (seul le owner peut tirer au sort)
 
-### 2.3 Fonction `buyTicket()`
+### Fonction `buyTicket()`
 
 ```solidity
 function buyTicket() external payable {
@@ -74,6 +80,7 @@ function buyTicket() external payable {
 ```
 
 **Logique :**
+
 - `external` : Peut être appelée depuis l'extérieur du contrat
 - `payable` : Permet de recevoir des ethers
 - `require` : Vérifie que le montant envoyé est EXACTEMENT égal au prix du ticket
@@ -81,10 +88,11 @@ function buyTicket() external payable {
 - L'ether envoyé reste dans le contrat (cagnotte)
 
 **Sécurité :**
-- ✅ Vérification stricte du montant (pas de montant partiel accepté)
-- ✅ Empêche les erreurs de transaction
 
-### 2.4 Fonction `pickWinner()` - Le Cœur du Système
+- Vérification stricte du montant (pas de montant partiel accepté)
+- Empêche les erreurs de transaction
+
+### Fonction `pickWinner()` - Le Cœur du Système
 
 ```solidity
 function pickWinner() external onlyOwner {
@@ -128,12 +136,13 @@ function pickWinner() external onlyOwner {
    - `call{value: prize}("")` : Méthode moderne et sécurisée pour envoyer des ethers
 7. **Réinitialisation** : Vide le tableau `players` pour le prochain tirage
 
-**⚠️ Important - Sécurité :**
+**Important - Sécurité :**
+
 - Cette méthode de randomisation est **prévisible** (pas sécurisée pour la production)
 - Pour la production, utiliser Chainlink VRF (Verifiable Random Function)
 - `block.difficulty` est déprécié → utiliser `block.prevrandao` sur les réseaux récents
 
-### 2.5 Fonctions de Lecture (View)
+### Fonctions de Lecture (View)
 
 ```solidity
 function getPlayers() external view returns (address payable[] memory)
@@ -143,15 +152,16 @@ function getBalance() external view returns (uint256)
 ```
 
 **Logique :**
+
 - `view` : Fonctions en lecture seule (pas de modification d'état)
 - Gratuites à appeler (pas de gas nécessaire)
 - Permettent aux interfaces frontend de récupérer les données
 
 ---
 
-## 🧪 Phase 3 : Tests Automatisés
+## Phase 3 : Tests Automatisés
 
-### 3.1 Structure des Tests
+### Structure des Tests
 
 **Framework :** Mocha + Chai + Hardhat
 
@@ -161,40 +171,50 @@ describe("BlockLucky", function () {
 })
 ```
 
-### 3.2 Scénarios Testés
+### Scénarios Testés
 
-#### ✅ Test 1 : Déploiement
+#### Test 1 : Déploiement
+
 ```javascript
 it("deploys with correct owner and ticket price")
 ```
+
 - Vérifie que le owner est bien celui qui déploie
 - Vérifie que le ticketPrice est 0.1 ether
 
-#### ✅ Test 2 : Achat de Ticket Réussi
+#### Test 2 : Achat de Ticket Réussi
+
 ```javascript
 it("allows a player to buy a ticket with exact price")
 ```
+
 - Un joueur achète un ticket avec le bon montant
 - Vérifie qu'il est bien ajouté au tableau `players`
 
-#### ✅ Test 3 : Échec d'Achat
+#### Test 3 : Échec d'Achat
+
 ```javascript
 it("reverts when buying a ticket with incorrect value")
 ```
+
 - Tente d'acheter avec un montant incorrect (0.05 ether)
 - Vérifie que la transaction échoue avec le message d'erreur
 
-#### ✅ Test 4 : Protection d'Accès
+#### Test 4 : Protection d'Accès
+
 ```javascript
 it("restricts pickWinner to the owner")
 ```
+
 - Un joueur tente d'appeler `pickWinner()`
 - Vérifie que ça échoue avec "Not authorized"
 
-#### ✅ Test 5 : Flux Complet
+#### Test 5 : Flux Complet
+
 ```javascript
 it("completes the lottery flow and resets state")
 ```
+
 1. 3 joueurs achètent des tickets
 2. Vérifie que la balance = 0.3 ether (3 × 0.1)
 3. Le owner tire au sort
@@ -202,20 +222,22 @@ it("completes the lottery flow and resets state")
 5. Vérifie que le tableau `players` est vide
 
 **Logique des Fixtures :**
+
 ```javascript
 async function deployContractFixture() {
   const [owner, player1, player2, player3] = await ethers.getSigners();
   // ...
 }
 ```
+
 - `getSigners()` : Récupère des comptes de test depuis Hardhat
 - Réutilisable dans tous les tests (DRY principle)
 
 ---
 
-## ⚙️ Phase 4 : Configuration
+## Phase 4 : Configuration
 
-### 4.1 hardhat.config.js
+### hardhat.config.js
 
 ```javascript
 solidity: {
@@ -230,10 +252,11 @@ solidity: {
 ```
 
 **Logique :**
+
 - Optimizer : Réduit les coûts de déploiement et d'exécution
 - `runs: 200` : Optimise pour des fonctions appelées ~200 fois
 
-### 4.2 package.json
+### package.json
 
 ```json
 {
@@ -245,13 +268,13 @@ solidity: {
 }
 ```
 
-### 4.3 .vscode/extensions.json
+### .vscode/extensions.json
 
 Recommandations d'extensions pour la coloration syntaxique Solidity.
 
 ---
 
-## 🔄 Flux Complet d'Utilisation
+## Flux Complet d'Utilisation
 
 ```
 1. Déploiement
@@ -275,9 +298,10 @@ Recommandations d'extensions pour la coloration syntaxique Solidity.
 
 ---
 
-## 🎓 Concepts Clés Appris
+## Concepts Clés Appris
 
 ### Solidity
+
 - **Modifiers** : Réutilisables pour vérifications
 - **payable** : Recevoir des ethers
 - **external/view** : Visibilité des fonctions
@@ -286,19 +310,21 @@ Recommandations d'extensions pour la coloration syntaxique Solidity.
 - **call{value}** : Transfert sécurisé d'ether
 
 ### Hardhat
+
 - **getSigners()** : Comptes de test
 - **getContractFactory()** : Compilation et déploiement
 - **connect()** : Appeler depuis un compte spécifique
 - **expect().to.be.revertedWith()** : Tester les erreurs
 
 ### Tests
+
 - **Fixtures** : Réutiliser le setup
 - **Assertions** : Vérifier les résultats
 - **Scénarios** : Couvrir succès et échecs
 
 ---
 
-## 🚨 Points d'Attention
+## Points d'Attention
 
 1. **Randomisation** : Non sécurisée pour production
 2. **block.difficulty** : Déprécié, utiliser `prevrandao`
@@ -307,7 +333,7 @@ Recommandations d'extensions pour la coloration syntaxique Solidity.
 
 ---
 
-## 📈 Prochaines Étapes Possibles
+## Prochaines Étapes Possibles
 
 - [ ] Intégrer Chainlink VRF pour randomisation sécurisée
 - [ ] Ajouter un système de frais pour le owner
@@ -318,5 +344,4 @@ Recommandations d'extensions pour la coloration syntaxique Solidity.
 
 ---
 
-**Projet créé avec ❤️ pour apprendre les smart contracts Solidity !**
-
+Projet créé pour apprendre les smart contracts Solidity.
