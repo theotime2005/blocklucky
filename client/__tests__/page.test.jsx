@@ -52,16 +52,20 @@ jest.mock('framer-motion', () => {
 });
 
 // Mock useWallet hook
-jest.mock('../hooks/useWallet', () => ({
-  useWallet: () => ({
-    provider: null,
-    signer: null,
-    account: null,
-    connectWallet: jest.fn(),
-    isConnected: false,
-    error: null,
-  }),
-}));
+jest.mock('../hooks/useWallet', () => {
+  const React = require('react');
+  return {
+    useWallet: () => ({
+      provider: null,
+      signer: null,
+      account: null,
+      connectWallet: jest.fn(),
+      isConnected: false,
+      error: null,
+    }),
+    WalletProvider: ({ children }) => React.createElement(React.Fragment, null, children),
+  };
+});
 
 // Mock useLottery hook
 jest.mock('../hooks/useLottery', () => ({
@@ -82,23 +86,13 @@ jest.mock('../components/MetaMaskModal', () => {
 
 const Home = require('../app/page').default;
 
-test('renders the main heading and content', () => {
+test('affiche le hero BlockLucky avec les elements cles', () => {
   render(React.createElement(Home));
-  
-  // Check for main heading (appears multiple times, use getAllByText)
-  const blockLuckyElements = screen.getAllByText(/BlockLucky/i);
-  expect(blockLuckyElements.length).toBeGreaterThan(0);
-  
-  // Check for subtitle
-  expect(screen.getByText(/Decentralized Lottery/i)).toBeInTheDocument();
-  
-  // Check for CTA button (appears multiple times, use getAllByText)
-  const connectWalletElements = screen.getAllByText(/Connect Wallet/i);
-  expect(connectWalletElements.length).toBeGreaterThan(0);
-  
-  // Check for "How It Works" section
-  expect(screen.getByText(/How It Works/i)).toBeInTheDocument();
-  
-  // Check for "Live on Ethereum" badge
-  expect(screen.getByText(/Live on Ethereum/i)).toBeInTheDocument();
+
+  expect(screen.getByRole('heading', { level: 1, name: /Block\s*Lucky/i })).toBeInTheDocument();
+  expect(screen.getAllByText(/Loterie d'EtherBay/i).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Tentez de remporter la cagnotte/i)).toBeInTheDocument();
+  expect(screen.getByText(/Cagnotte actuelle/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Se connecter pour participer/i })).toBeInTheDocument();
+  expect(screen.getByText(/100% smart-contract/i)).toBeInTheDocument();
 });
