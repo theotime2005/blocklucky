@@ -131,7 +131,7 @@ export const BLOCKLUCKY_ABI = [
   }
 ];
 
-// Contract address (à remplacer après déploiement)
+// Contract address (a remplacer apres deploiement)
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "";
 
 // Chain ID (Ethereum Mainnet = 1, Sepolia = 11155111)
