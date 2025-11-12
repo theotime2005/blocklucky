@@ -5,6 +5,8 @@ import "./globals.css";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Toaster } from 'sonner';
+import { WalletProvider } from "../hooks/useWallet";
+import { WalletModalProvider } from "../context/WalletModalContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,22 +24,26 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0f0e1a] min-h-screen`}
       >
-        <Navbar />
-        <main className="pt-16">
-          {children}
-        </main>
-        <Footer />
-        <Toaster 
-          position="top-right"
-          theme="dark"
-          toastOptions={{
-            style: {
-              background: '#1a1827',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#ffffff',
-            },
-          }}
-        />
+        <WalletProvider>
+          <WalletModalProvider>
+            <Navbar />
+            <main className="pt-16">
+              {children}
+            </main>
+            <Footer />
+            <Toaster 
+              position="top-right"
+              theme="dark"
+              toastOptions={{
+                style: {
+                  background: '#1a1827',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#ffffff',
+                },
+              }}
+            />
+          </WalletModalProvider>
+        </WalletProvider>
       </body>
     </html>
   );

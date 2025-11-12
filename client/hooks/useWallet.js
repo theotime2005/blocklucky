@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ethers } from 'ethers';
 
-export function useWallet() {
+const WalletContext = createContext(null);
+
+const LOCAL_RPC_URL = process.env.NEXT_PUBLIC_HARDHAT_RPC_URL || 'http://127.0.0.1:8545';
+const LOCAL_PRIVATE_KEY =
+  process.env.NEXT_PUBLIC_HARDHAT_PRIVATE_KEY ||
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+export function WalletProvider({ children }) {
   const [account, setAccount] = useState(null);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -12,65 +19,19 @@ export function useWallet() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Check if wallet is already connected
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      checkConnection();
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', () => window.location.reload());
-    }
-  }, []);
+  const updateBalance = useCallback(
+    async (currentProvider = provider, currentAccount = account) => {
+      if (!currentProvider || !currentAccount) return;
 
-  // Update balance when account changes
-  useEffect(() => {
-    if (provider && account) {
-      updateBalance();
-      const interval = setInterval(updateBalance, 10000); // Update every 10s
-      return () => clearInterval(interval);
-    }
-  }, [provider, account]);
-
-  const checkConnection = async () => {
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      if (accounts.length > 0) {
-        await connectWallet();
+      try {
+        const balanceValue = await currentProvider.getBalance(currentAccount);
+        setBalance(balanceValue);
+      } catch (balanceError) {
+        console.error('Error fetching balance:', balanceError);
       }
-    } catch (error) {
-      console.error('Error checking connection:', error);
-    }
-  };
-
-  const connectWallet = useCallback(async () => {
-    setIsConnecting(true);
-    setError(null);
-
-    try {
-      if (typeof window === 'undefined' || !window.ethereum) {
-        setError('METAMASK_NOT_INSTALLED');
-        setIsConnecting(false);
-        return;
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await provider.send('eth_requestAccounts', []);
-      const signer = await provider.getSigner();
-
-      setProvider(provider);
-      setSigner(signer);
-      setAccount(accounts[0]);
-      setIsConnected(true);
-      setIsConnecting(false);
-      setError(null);
-
-      // Get initial balance
-      await updateBalance();
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      setError(error.message);
-      setIsConnecting(false);
-    }
-  }, []);
+    },
+    [provider, account],
+  );
 
   const disconnectWallet = useCallback(() => {
     setAccount(null);
@@ -81,36 +42,142 @@ export function useWallet() {
     setError(null);
   }, []);
 
-  const updateBalance = async () => {
-    if (provider && account) {
-      try {
-        const balance = await provider.getBalance(account);
-        setBalance(balance);
-      } catch (error) {
-        console.error('Error fetching balance:', error);
+  const connectWallet = useCallback(async () => {
+    setIsConnecting(true);
+    setError(null);
+
+    try {
+      if (typeof window === 'undefined' || !window.ethereum) {
+        setError('METAMASK_NOT_INSTALLED');
+        throw new Error('METAMASK_NOT_INSTALLED');
       }
-    }
-  };
 
-  const handleAccountsChanged = (accounts) => {
-    if (accounts.length === 0) {
-      disconnectWallet();
-    } else {
-      connectWallet();
-    }
-  };
+      const providerInstance = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await providerInstance.send('eth_requestAccounts', []);
+      const signerInstance = await providerInstance.getSigner();
+      const primaryAccount = accounts[0];
 
-  return {
-    account,
-    provider,
-    signer,
-    balance,
-    isConnected,
-    isConnecting,
-    error,
-    connectWallet,
-    disconnectWallet,
-    updateBalance,
-  };
+      setProvider(providerInstance);
+      setSigner(signerInstance);
+      setAccount(primaryAccount);
+      setIsConnected(true);
+      await updateBalance(providerInstance, primaryAccount);
+    } catch (connectError) {
+      console.error('Error connecting wallet:', connectError);
+      setError(connectError.message || 'CONNECTION_ERROR');
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [updateBalance]);
+
+  const connectLocal = useCallback(async () => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      const providerInstance = new ethers.JsonRpcProvider(LOCAL_RPC_URL);
+      const signerInstance = new ethers.Wallet(LOCAL_PRIVATE_KEY, providerInstance);
+      const walletAddress = await signerInstance.getAddress();
+
+      setProvider(providerInstance);
+      setSigner(signerInstance);
+      setAccount(walletAddress);
+      setIsConnected(true);
+      await updateBalance(providerInstance, walletAddress);
+      setError(null);
+    } catch (localError) {
+      console.error('Error connecting local wallet:', localError);
+      setError(localError.message || 'LOCAL_CONNECTION_ERROR');
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [updateBalance]);
+
+  const handleAccountsChanged = useCallback(
+    (accounts) => {
+      if (!accounts || accounts.length === 0) {
+        disconnectWallet();
+        return;
+      }
+      const nextAccount = accounts[0];
+      setAccount(nextAccount);
+      setIsConnected(true);
+      updateBalance(provider, nextAccount);
+    },
+    [disconnectWallet, updateBalance, provider],
+  );
+
+  const checkConnection = useCallback(async () => {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        await connectWallet();
+      }
+    } catch (checkError) {
+      console.error('Error checking connection:', checkError);
+    }
+  }, [connectWallet]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+
+    const { ethereum } = window;
+    const handleChainChanged = () => window.location.reload();
+
+    checkConnection();
+    ethereum.on('accountsChanged', handleAccountsChanged);
+    ethereum.on('chainChanged', handleChainChanged);
+
+    return () => {
+      ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      ethereum.removeListener('chainChanged', handleChainChanged);
+    };
+  }, [checkConnection, handleAccountsChanged]);
+
+  useEffect(() => {
+    if (!provider || !account) return;
+
+    updateBalance();
+    const interval = setInterval(() => updateBalance(), 10000);
+    return () => clearInterval(interval);
+  }, [provider, account, updateBalance]);
+
+  const contextValue = useMemo(
+    () => ({
+      account,
+      provider,
+      signer,
+      balance,
+      isConnected,
+      isConnecting,
+      error,
+      connectWallet,
+      connectLocal,
+      disconnectWallet,
+      updateBalance,
+    }),
+    [
+      account,
+      provider,
+      signer,
+      balance,
+      isConnected,
+      isConnecting,
+      error,
+      connectWallet,
+      connectLocal,
+      disconnectWallet,
+      updateBalance,
+    ],
+  );
+
+  return <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>;
 }
 
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error('useWallet must be used within a WalletProvider');
+  }
+  return context;
+}
