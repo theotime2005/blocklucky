@@ -1,17 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+
 import { useWallet } from '../../hooks/useWallet';
+import { useWalletModal } from '../../context/WalletModalContext';
 import { useLottery } from '../../hooks/useLottery';
 import TicketPurchase from '../../components/TicketPurchase';
 import StatsCard from '../../components/StatsCard';
-import { motion } from 'framer-motion';
 import { formatAddress, getAvatarUrl } from '../../lib/ethersUtils';
-import { toast } from 'sonner';
 import { getEtherscanTxUrl } from '../../lib/ethersUtils';
 
 export default function Dashboard() {
-  const { provider, signer, account, isConnected, connectWallet } = useWallet();
+  const { provider, signer, account, isConnected } = useWallet();
+  const { openModal } = useWalletModal();
   const {
     ticketPrice,
     jackpot,
@@ -23,10 +26,13 @@ export default function Dashboard() {
     getUserTickets,
     pickWinner,
     refreshData,
+    isLoading,
   } = useLottery(provider, signer, account);
 
   const [userTickets, setUserTickets] = useState(0);
   const [isPickingWinner, setIsPickingWinner] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [networkInfo, setNetworkInfo] = useState({ name: '', chainId: '' });
 
   useEffect(() => {
     if (isConnected && account) {
@@ -34,181 +40,242 @@ export default function Dashboard() {
     }
   }, [isConnected, account, players]);
 
+  useEffect(() => {
+    let mounted = true;
+    if (!provider) {
+      setNetworkInfo({ name: '', chainId: '' });
+      return;
+    }
+
+    (async () => {
+      try {
+        const network = await provider.getNetwork();
+        if (!mounted) return;
+        setNetworkInfo({
+          name: network.name || 'local',
+          chainId: network.chainId ? network.chainId.toString() : '',
+        });
+      } catch (error) {
+        console.error('Error fetching network info:', error);
+        if (!mounted) return;
+        setNetworkInfo({ name: 'local', chainId: '' });
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [provider]);
+
   const loadUserTickets = async () => {
     const tickets = await getUserTickets();
     setUserTickets(tickets);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshData();
+      await loadUserTickets();
+      toast.success('Tableau mis a jour');
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+      toast.error('Impossible de rafraichir', {
+        description: error instanceof Error ? error.message : 'Veuillez reessayer',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handlePickWinner = async () => {
     if (!isOwner) {
-      toast.error('Only the contract owner can pick a winner');
+      toast.error('Seul le proprietaire du contrat peut tirer un gagnant.');
       return;
     }
 
     setIsPickingWinner(true);
     try {
       const result = await pickWinner();
-      
-      toast.success('Transaction submitted!', {
-        description: 'Winner is being selected...',
+
+      toast.success('Transaction envoyee', {
+        description: 'Le gagnant est en cours de selection...',
         action: {
-          label: 'View on Etherscan',
+          label: 'Voir sur Etherscan',
           onClick: () => window.open(getEtherscanTxUrl(result.hash), '_blank'),
         },
       });
 
       await result.tx.wait();
-      
-      toast.success('Winner selected!', {
-        description: 'The jackpot has been distributed',
+
+      toast.success('Gagnant designe', {
+        description: 'La cagnotte vient d etre distribuee.',
       });
 
-      refreshData();
+      await refreshData();
+      await loadUserTickets();
     } catch (error) {
       console.error('Error picking winner:', error);
-      toast.error('Transaction failed', {
-        description: error.message || 'Please try again',
+      toast.error('La transaction a echoue', {
+        description: error instanceof Error ? error.message : 'Veuillez reessayer',
       });
     } finally {
       setIsPickingWinner(false);
     }
   };
 
+  const recentPlayers = useMemo(() => [...players].slice(-6).reverse(), [players, playersCount]);
+  const networkLabel = networkInfo.name
+    ? `${networkInfo.name}${networkInfo.chainId ? ` #${networkInfo.chainId}` : ''}`
+    : 'Reseau local';
+  const jackpotDisplay = isLoading ? '...' : `${jackpot} ETH`;
+  const ticketPriceDisplay = ticketPrice ? `${ticketPrice} ETH` : '0.00 ETH';
+
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="card max-w-md text-center"
+      <div className="dashboard dashboard--empty">
+        <motion.section
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="panel panel--glass dashboard__connect"
         >
-          <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
-          <p className="text-[#a0aec0] mb-6">
-            Please connect your wallet to access the dashboard
+          <h2>Connecte ton wallet</h2>
+          <p>
+            Accede a ton tableau de bord, achete des billets et suis la cagnotte en temps reel en connectant ton
+            wallet Ethereum.
           </p>
-          <button
-            onClick={connectWallet}
-            className="px-8 py-4 btn-accent rounded-lg text-white font-bold glow"
-          >
-            Connect Wallet
+          <button type="button" onClick={openModal}>
+            Connecter un wallet
           </button>
-        </motion.div>
+        </motion.section>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h1 className="text-4xl font-bold mb-2 gradient-text">Dashboard</h1>
-          <p className="text-[#a0aec0]">Welcome back, {formatAddress(account)}</p>
-        </motion.div>
+    <div className="dashboard">
+      <div className="dashboard__inner">
+        <header className="dashboard__header">
+          <div>
+            <p className="dashboard__eyebrow">Tableau de bord</p>
+            <h1>
+              Salut <span>{formatAddress(account)}</span>
+            </h1>
+            <p>Gere ta participation, surveille la cagnotte et tire un gagnant si tu es owner.</p>
+          </div>
+          <div className="dashboard__badge">
+            <span>Ticket</span>
+            <strong>{ticketPrice || '...' } ETH</strong>
+          </div>
+        </header>
 
-        {/* User Tickets */}
         {userTickets > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 card bg-gradient-to-r from-[#10b981]/20 to-[#10b981]/10 border-[#10b981]/30"
+            transition={{ duration: 0.3 }}
+            className="panel panel--success dashboard__highlight"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-[#a0aec0] mb-1">Your Tickets</div>
-                <div className="text-3xl font-bold text-[#10b981]">{userTickets}</div>
-              </div>
-              <div className="text-5xl">🎫</div>
+            <div>
+              <p className="panel__eyebrow">Tes billets</p>
+              <h2>{userTickets}</h2>
             </div>
-          </motion.div>
+            <p>Plus tu as de billets, plus tu maximises tes chances.</p>
+          </motion.section>
         )}
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <TicketPurchase />
-          <StatsCard />
+        <div className="dashboard__grid">
+          <TicketPurchase
+            ticketPrice={ticketPrice}
+            isLoading={isLoading}
+            buyTicket={buyTicket}
+            isConnected={isConnected}
+            openWalletModal={openModal}
+          />
+          <StatsCard
+            jackpot={jackpot}
+            playersCount={playersCount}
+            lastWinner={lastWinner}
+            isLoading={isLoading}
+          />
         </div>
 
-        {/* Last Winner */}
         {lastWinner && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card mb-8"
+            className="panel panel--glass dashboard__winner"
           >
-            <h2 className="text-2xl font-bold mb-6 gradient-text">Last Winner</h2>
-            <div className="flex items-center space-x-4">
-              <img
-                src={getAvatarUrl(lastWinner)}
-                alt="Winner"
-                className="w-16 h-16 rounded-full border-2 border-[#00CAFF]"
-              />
-              <div>
-                <div className="text-sm text-[#a0aec0] mb-1">Congratulations!</div>
-                <div className="text-xl font-bold text-white">{formatAddress(lastWinner)}</div>
-                <div className="text-sm text-[#00CAFF]">Won the jackpot!</div>
-              </div>
+            <div className="dashboard__winner-media">
+              <img src={getAvatarUrl(lastWinner)} alt="Dernier gagnant" />
             </div>
-          </motion.div>
+            <div>
+              <span className="panel__eyebrow">Dernier gagnant</span>
+              <h2>{formatAddress(lastWinner)}</h2>
+              <p>Felicitations ! Le jackpot a ete envoye automatiquement.</p>
+            </div>
+          </motion.section>
         )}
 
-        {/* Owner Actions */}
         {isOwner && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card border-[#ff7e00]/30 bg-gradient-to-r from-[#ff7e00]/10 to-[#ff7e00]/5"
+            className="panel panel--warning dashboard__owner"
           >
-            <h2 className="text-2xl font-bold mb-4 text-[#ff7e00]">Owner Actions</h2>
-            <p className="text-[#a0aec0] mb-4">
-              As the contract owner, you can pick a winner when there are players.
-            </p>
+            <div>
+              <span className="panel__eyebrow">Espace owner</span>
+              <h2>Declencher le tirage</h2>
+              <p>
+                Tu peux designer un gagnant des qu il y a des participants. Assure-toi que tout le monde a eu le temps
+                d acheter ses billets.
+              </p>
+              <div className="dashboard__owner-meta">
+                <span>Owner actuel</span>
+                <strong>{owner ? formatAddress(owner) : 'Non defini'}</strong>
+              </div>
+            </div>
             <button
+              type="button"
               onClick={handlePickWinner}
               disabled={isPickingWinner || playersCount === 0}
-              className="px-6 py-3 bg-[#ff7e00] hover:bg-[#ff7e00]/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-all"
             >
-              {isPickingWinner ? 'Picking Winner...' : `Pick Winner (${playersCount} players)`}
+              {isPickingWinner ? 'Tirage en cours...' : `Tirer au sort (${playersCount} participant(s))`}
             </button>
-          </motion.div>
+          </motion.section>
         )}
 
-        {/* Players List */}
         {playersCount > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card"
+            className="panel panel--glass dashboard__participants"
           >
-            <h2 className="text-2xl font-bold mb-6 gradient-text">Participants</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {players.slice(0, 12).map((player, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-3 p-3 bg-[#1a1827] rounded-lg border border-white/5"
-                >
-                  <img
-                    src={getAvatarUrl(player)}
-                    alt="Player"
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white truncate">{formatAddress(player)}</div>
-                    <div className="text-xs text-[#a0aec0]">Ticket #{index + 1}</div>
+            <div className="panel__header">
+              <div>
+                <p className="panel__eyebrow">Participants</p>
+                <h2>Ils tentent leur chance</h2>
+              </div>
+              <span className="chip">
+                {playersCount} billet{playersCount > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="dashboard__participants-list">
+              {players.slice(0, 18).map((player, index) => (
+                <article key={`${player}-${index}`}>
+                  <img src={getAvatarUrl(player)} alt="" aria-hidden />
+                  <div>
+                    <p>{formatAddress(player)}</p>
+                    <span>Ticket #{index + 1}</span>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-            {playersCount > 12 && (
-              <div className="mt-4 text-center text-[#a0aec0]">
-                +{playersCount - 12} more participants
-              </div>
+            {playersCount > 18 && (
+              <footer>+ {playersCount - 18} participant(s) supplementaires</footer>
             )}
-          </motion.div>
+          </motion.section>
         )}
       </div>
     </div>
