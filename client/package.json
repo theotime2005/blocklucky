@@ -10,9 +10,16 @@
     "test": "jest"
   },
   "dependencies": {
+    "@builder.io/react": "^8.2.9",
+    "@rainbow-me/rainbowkit": "^2.2.9",
+    "ethers": "^6.15.0",
+    "framer-motion": "^12.23.24",
     "next": "16.0.1",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "sonner": "^2.0.7",
+    "viem": "^2.39.0",
+    "wagmi": "^2.19.3"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",
