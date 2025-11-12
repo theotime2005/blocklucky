@@ -24,6 +24,7 @@ export default function Dashboard() {
     owner,
     isOwner,
     getUserTickets,
+    buyTicket,
     pickWinner,
     refreshData,
     isLoading,
@@ -131,6 +132,44 @@ export default function Dashboard() {
   const jackpotDisplay = isLoading ? '...' : `${jackpot} ETH`;
   const ticketPriceDisplay = ticketPrice ? `${ticketPrice} ETH` : '0.00 ETH';
 
+  const mockInsights = useMemo(() => {
+    const safeNumber = (value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const numericTicketPrice = safeNumber(ticketPrice);
+    const numericJackpot = safeNumber(jackpot);
+    const tickets24h = Math.max(playersCount + 8, Math.max(playersCount, 0));
+    const revenue24h = numericTicketPrice * tickets24h;
+    const averagePot = numericJackpot > 0 && playersCount > 0
+      ? `${(numericJackpot / playersCount).toFixed(2)} ETH`
+      : `${numericTicketPrice.toFixed(2)} ETH`;
+
+    return [
+      {
+        title: 'Billets vendus (24h)',
+        value: `${tickets24h}`,
+        hint: '+12% vs veille (mock)',
+      },
+      {
+        title: 'Recettes estimees',
+        value: `${revenue24h.toFixed(2)} ETH`,
+        hint: `Ticket moyen ${numericTicketPrice.toFixed(2)} ETH`,
+      },
+      {
+        title: 'Prix moyen du pot',
+        value: averagePot,
+        hint: 'Projection base tirage courant',
+      },
+      {
+        title: 'Cours ETH spot',
+        value: '2350 USD',
+        hint: 'Gaz moyen: 18 gwei (mock)',
+      },
+    ];
+  }, [playersCount, jackpot, ticketPrice]);
+
   if (!isConnected) {
     return (
       <div className="dashboard dashboard--empty">
@@ -169,6 +208,58 @@ export default function Dashboard() {
             <strong>{ticketPrice || '...' } ETH</strong>
           </div>
         </header>
+
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="panel panel--glass dashboard__status"
+        >
+          <div className="dashboard__status-metric">
+            <span>Jackpot live</span>
+            <strong>{jackpotDisplay}</strong>
+            <p>Solde cumule des billets actifs.</p>
+          </div>
+          <div className="dashboard__status-metric">
+            <span>Prix du billet</span>
+            <strong>{ticketPriceDisplay}</strong>
+            <p>Tarif configure sur le smart contract.</p>
+          </div>
+          <div className="dashboard__status-metric">
+            <span>Participants</span>
+            <strong>{playersCount}</strong>
+            <p>Billets enregistres pour le prochain tirage.</p>
+          </div>
+          <div className="dashboard__status-metric">
+            <span>Tes billets</span>
+            <strong>{userTickets}</strong>
+            <p>Plus tu en possedes, plus tu augmentes tes chances.</p>
+          </div>
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="panel panel--glass dashboard__insights"
+        >
+          <div className="panel__header">
+            <div>
+              <p className="panel__eyebrow">Insights</p>
+              <h2 className="panel__title">Vue temps reel (mock)</h2>
+            </div>
+            <span className="chip">Mode demo</span>
+          </div>
+          <div className="dashboard__insights-grid">
+            {mockInsights.map((insight) => (
+              <article key={insight.title} className="dashboard__insight-card">
+                <p className="dashboard__insight-label">{insight.title}</p>
+                <strong>{insight.value}</strong>
+                <span>{insight.hint}</span>
+              </article>
+            ))}
+          </div>
+        </motion.section>
 
         {userTickets > 0 && (
           <motion.section
