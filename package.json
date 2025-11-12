@@ -15,10 +15,19 @@
   "type": "modules",
   "main": "index.js",
   "scripts": {
+    "ci-blocks": "cd blocks && npm install",
+    "ci-client": "cd client && npm install",
+    "ci-all": "npm install && run-p --print-label ci-blocks ci-client",
     "test": "npm run test:contracts && npm run test:frontend",
     "test:contracts": "cd blocks && npm test",
     "test:frontend": "cd client && npm test",
+    "test-blocks": "cd blocks && npm t",
+    "test-client": "cd client && npm t",
+    "test:parallel": "run-p --print-label test-blocks test-client",
     "test:e2e": "cd blocks && npm run test:e2e",
     "test:all": "npm run test:contracts && npm run test:frontend && echo '\n✅ All tests completed! Run npm run test:e2e (with hardhat node running) for E2E tests'"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
   }
 }
