@@ -15,6 +15,10 @@
   "type": "modules",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test:contracts && npm run test:frontend",
+    "test:contracts": "cd blocks && npm test",
+    "test:frontend": "cd client && npm test",
+    "test:e2e": "cd blocks && npm run test:e2e",
+    "test:all": "npm run test:contracts && npm run test:frontend && echo '\n✅ All tests completed! Run npm run test:e2e (with hardhat node running) for E2E tests'"
   }
 }

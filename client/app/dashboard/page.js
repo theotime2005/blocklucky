@@ -26,14 +26,27 @@ export default function Dashboard() {
     getUserTickets,
     buyTicket,
     pickWinner,
+    commitRandomness,
+    revealAndPickWinner,
+    resetToPhase1,
     refreshData,
     isLoading,
+    lotteryPhase,
+    lotteryInProgress,
+    commitmentActive,
+    commitmentTimestamp,
+    revealDeadline,
   } = useLottery(provider, signer, account);
 
   const [userTickets, setUserTickets] = useState(0);
   const [isPickingWinner, setIsPickingWinner] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [networkInfo, setNetworkInfo] = useState({ name: '', chainId: '' });
+  const [seed, setSeed] = useState('');
+  const [storedSeed, setStoredSeed] = useState('');
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (isConnected && account) {
@@ -122,6 +135,133 @@ export default function Dashboard() {
       });
     } finally {
       setIsPickingWinner(false);
+    }
+  };
+
+  const handleCommitRandomness = async () => {
+    if (!isOwner) {
+      toast.error('Seul le proprietaire du contrat peut commencer le tirage.');
+      return;
+    }
+
+    if (!seed || seed.length < 10) {
+      toast.error('Le seed doit contenir au moins 10 caracteres pour plus de securite.');
+      return;
+    }
+
+    setIsCommitting(true);
+    try {
+      const result = await commitRandomness(seed);
+
+      setStoredSeed(seed);
+      localStorage.setItem('lottery_seed', seed);
+
+      toast.success('Commitment enregistre', {
+        description: 'Le hash a ete soumis. Conservez votre seed secret!',
+        action: {
+          label: 'Voir sur Etherscan',
+          onClick: () => window.open(getEtherscanTxUrl(result.hash), '_blank'),
+        },
+      });
+
+      await result.tx.wait();
+
+      toast.success('Phase 2 activee', {
+        description: 'Les joueurs ne peuvent plus acheter de billets.',
+      });
+
+      setSeed('');
+      await refreshData();
+    } catch (error) {
+      console.error('Error committing randomness:', error);
+      toast.error('La transaction a echoue', {
+        description: error instanceof Error ? error.message : 'Veuillez reessayer',
+      });
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  const handleRevealAndPickWinner = async () => {
+    if (!isOwner) {
+      toast.error('Seul le proprietaire du contrat peut reveler le gagnant.');
+      return;
+    }
+
+    const seedToUse = storedSeed || localStorage.getItem('lottery_seed');
+
+    if (!seedToUse) {
+      toast.error('Seed introuvable', {
+        description: 'Vous devez entrer le seed utilise lors du commit.',
+      });
+      return;
+    }
+
+    setIsRevealing(true);
+    try {
+      const result = await revealAndPickWinner(seedToUse);
+
+      toast.success('Transaction envoyee', {
+        description: 'Le gagnant est en cours de selection...',
+        action: {
+          label: 'Voir sur Etherscan',
+          onClick: () => window.open(getEtherscanTxUrl(result.hash), '_blank'),
+        },
+      });
+
+      await result.tx.wait();
+
+      toast.success('Gagnant designe!', {
+        description: 'La cagnotte a ete distribuee automatiquement.',
+      });
+
+      setStoredSeed('');
+      localStorage.removeItem('lottery_seed');
+
+      await refreshData();
+      await loadUserTickets();
+    } catch (error) {
+      console.error('Error revealing winner:', error);
+      toast.error('La transaction a echoue', {
+        description: error instanceof Error ? error.message : 'Veuillez reessayer',
+      });
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  const handleResetToPhase1 = async () => {
+    if (!isOwner) {
+      toast.error('Seul le proprietaire du contrat peut reinitialiser.');
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const result = await resetToPhase1();
+
+      toast.success('Transaction envoyee', {
+        description: 'Retour a la phase 1...',
+        action: {
+          label: 'Voir sur Etherscan',
+          onClick: () => window.open(getEtherscanTxUrl(result.hash), '_blank'),
+        },
+      });
+
+      await result.tx.wait();
+
+      toast.success('Phase 1 reactivee', {
+        description: 'Les joueurs peuvent a nouveau acheter des billets.',
+      });
+
+      await refreshData();
+    } catch (error) {
+      console.error('Error resetting to phase 1:', error);
+      toast.error('La transaction a echoue', {
+        description: error instanceof Error ? error.message : 'Veuillez reessayer',
+      });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -317,23 +457,99 @@ export default function Dashboard() {
           >
             <div>
               <span className="panel__eyebrow">Espace owner</span>
-              <h2>Declencher le tirage</h2>
-              <p>
-                Tu peux designer un gagnant des qu il y a des participants. Assure-toi que tout le monde a eu le temps
-                d acheter ses billets.
+              <h2>Gestion du tirage (Commit-Reveal)</h2>
+              <p className="dashboard__phase-indicator">
+                <strong>Phase actuelle:</strong> {lotteryPhase}
               </p>
+
+              {!lotteryInProgress && (
+                <>
+                  <p>
+                    Phase 1: Les joueurs peuvent acheter des billets. Quand tu es pret, entre un seed secret
+                    (au moins 10 caracteres) et clique sur "Commit" pour verrouiller le tirage.
+                  </p>
+                  <div className="dashboard__seed-input">
+                    <label htmlFor="seed-input">Seed secret</label>
+                    <input
+                      id="seed-input"
+                      type="text"
+                      value={seed}
+                      onChange={(e) => setSeed(e.target.value)}
+                      placeholder="Entrez un seed secret (min 10 caracteres)"
+                      disabled={isCommitting}
+                    />
+                    <small>⚠️ Conservez ce seed, vous en aurez besoin pour la phase 3!</small>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCommitRandomness}
+                    disabled={isCommitting || playersCount === 0 || !seed || seed.length < 10}
+                  >
+                    {isCommitting ? 'Commit en cours...' : `Phase 2: Commit le hash (${playersCount} participant(s))`}
+                  </button>
+                </>
+              )}
+
+              {lotteryInProgress && commitmentActive && (
+                <>
+                  <p>
+                    Phase 2: Le commitment est actif. Les joueurs ne peuvent plus acheter de billets.
+                    Clique sur "Reveal" pour reveler le seed et selectionner le gagnant.
+                  </p>
+                  {!storedSeed && (
+                    <div className="dashboard__seed-input">
+                      <label htmlFor="reveal-seed-input">Re-entrer le seed</label>
+                      <input
+                        id="reveal-seed-input"
+                        type="text"
+                        value={seed}
+                        onChange={(e) => setSeed(e.target.value)}
+                        placeholder="Entrez le seed utilise lors du commit"
+                        disabled={isRevealing}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStoredSeed(seed);
+                          setSeed('');
+                        }}
+                        disabled={!seed}
+                      >
+                        Utiliser ce seed
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRevealAndPickWinner}
+                    disabled={isRevealing || !storedSeed}
+                  >
+                    {isRevealing ? 'Reveal en cours...' : 'Phase 3: Reveal et tirer le gagnant'}
+                  </button>
+                </>
+              )}
+
+              {lotteryInProgress && !commitmentActive && (
+                <>
+                  <p>
+                    Le tirage est termine. Clique sur "Reset" pour revenir a la phase 1 et permettre
+                    aux joueurs d acheter des billets pour le prochain tirage.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResetToPhase1}
+                    disabled={isResetting}
+                  >
+                    {isResetting ? 'Reset en cours...' : 'Reset vers Phase 1'}
+                  </button>
+                </>
+              )}
+
               <div className="dashboard__owner-meta">
                 <span>Owner actuel</span>
                 <strong>{owner ? formatAddress(owner) : 'Non defini'}</strong>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handlePickWinner}
-              disabled={isPickingWinner || playersCount === 0}
-            >
-              {isPickingWinner ? 'Tirage en cours...' : `Tirer au sort (${playersCount} participant(s))`}
-            </button>
           </motion.section>
         )}
 

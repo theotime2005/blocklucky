@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "jest useLottery.integration.test.js",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@builder.io/react": "^8.2.9",

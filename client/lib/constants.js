@@ -1,4 +1,3 @@
-// Contract ABI
 export const BLOCKLUCKY_ABI = [
   {
     inputs: [],
@@ -6,10 +5,198 @@ export const BLOCKLUCKY_ABI = [
     type: "constructor"
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "commitment",
+        type: "bytes32"
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "timestamp",
+        type: "uint256"
+      }
+    ],
+    name: "CommitmentMade",
+    type: "event"
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "winner",
+        type: "address"
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "prize",
+        type: "uint256"
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "randomIndex",
+        type: "uint256"
+      }
+    ],
+    name: "WinnerSelected",
+    type: "event"
+  },
+  {
+    inputs: [],
+    name: "ticketPrice",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "owner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "lastWinner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "lotteryInProgress",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "commitmentActive",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "currentLotteryPhase",
+    outputs: [
+      {
+        internalType: "string",
+        name: "",
+        type: "string"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "commitmentTimestamp",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "REVEAL_DEADLINE",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
     inputs: [],
     name: "buyTicket",
     outputs: [],
     stateMutability: "payable",
+    type: "function"
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "_commitment",
+        type: "bytes32"
+      }
+    ],
+    name: "commitRandomness",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function"
+  },
+  {
+    inputs: [
+      {
+        internalType: "string",
+        name: "_seed",
+        type: "string"
+      }
+    ],
+    name: "revealAndPickWinner",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "resetToPhase1",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "pickWinner",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function"
   },
   {
@@ -20,6 +207,19 @@ export const BLOCKLUCKY_ABI = [
         internalType: "uint256",
         name: "",
         type: "uint256"
+      }
+    ],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "getPlayers",
+    outputs: [
+      {
+        internalType: "address payable[]",
+        name: "",
+        type: "address[]"
       }
     ],
     stateMutability: "view",
@@ -52,52 +252,6 @@ export const BLOCKLUCKY_ABI = [
     type: "function"
   },
   {
-    inputs: [],
-    name: "getPlayers",
-    outputs: [
-      {
-        internalType: "address payable[]",
-        name: "",
-        type: "address[]"
-      }
-    ],
-    stateMutability: "view",
-    type: "function"
-  },
-  {
-    inputs: [],
-    name: "lastWinner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address"
-      }
-    ],
-    stateMutability: "view",
-    type: "function"
-  },
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address"
-      }
-    ],
-    stateMutability: "view",
-    type: "function"
-  },
-  {
-    inputs: [],
-    name: "pickWinner",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function"
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
@@ -111,19 +265,6 @@ export const BLOCKLUCKY_ABI = [
         internalType: "address payable",
         name: "",
         type: "address"
-      }
-    ],
-    stateMutability: "view",
-    type: "function"
-  },
-  {
-    inputs: [],
-    name: "ticketPrice",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256"
       }
     ],
     stateMutability: "view",
