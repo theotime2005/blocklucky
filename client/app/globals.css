@@ -429,11 +429,29 @@ body {
 .navbar__links a {
   color: rgba(255, 255, 255, 0.65);
   transition: color 0.3s ease;
+  position: relative;
+  display: inline-block;
+  padding: 0.5rem 0;
 }
 
 .navbar__links a:hover,
 .navbar__links a:focus-visible {
   color: #ffffff;
+}
+
+.navbar__link--active {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.navbar__link-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #7c5cff, #00cae5);
+  border-radius: 2px;
 }
 
 .navbar__actions {
@@ -504,11 +522,56 @@ body {
 
 .footer {
   margin: 4rem auto 2rem;
-  text-align: center;
+  padding: 2rem 1.5rem;
   color: rgba(255, 255, 255, 0.4);
   font-size: 0.9rem;
+}
+
+.footer__content {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  align-items: center;
+  text-align: center;
+}
+
+.footer__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.footer__brand p {
+  font-size: 0.95rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.footer__subtitle {
+  font-size: 0.85rem !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  text-transform: none !important;
+  letter-spacing: 0.05em !important;
+}
+
+.footer__nav {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer__nav a {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+  text-decoration: none;
+}
+
+.footer__nav a:hover {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .panel {
