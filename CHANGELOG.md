@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/theotime2005/blocklucky/compare/v1.0.0...v1.0.1) (2025-11-13)
+
+### :bug: Corrections de bugs
+
+* Corriger la release pour simplification ([#12](https://github.com/theotime2005/blocklucky/issues/12)) ([dcce8e7](https://github.com/theotime2005/blocklucky/commit/dcce8e736c6f57c090177e7d25888a441bb8f733))
+
 ## 1.0.0 (2025-11-13)
 
 ### :boom: Changements importants
