@@ -1,0 +1,33 @@
+{
+  "name": "blocklucky",
+  "version": "1.0.0",
+  "description": "The blocklucky project",
+  "homepage": "https://github.com/theotime2005/blocklucky#readme",
+  "bugs": {
+    "url": "https://github.com/theotime2005/blocklucky/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theotime2005/blocklucky.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "modules",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "next": "^16.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.3",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.0.1",
+    "typescript": "^5.9.3"
+  }
+}
