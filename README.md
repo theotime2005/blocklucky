@@ -4,7 +4,9 @@ Une application de loterie simple basée sur un smart contract Ethereum, dévelo
 
 ## But
 
-BlockLucky permet aux utilisateurs d'acheter des tickets à prix fixe (0.1 ETH). Le propriétaire du contrat peut lancer un tirage et transférer la cagnotte au gagnant, puis réinitialiser la loterie pour une nouvelle session.
+- BlockLucky permet aux utilisateurs d'acheter des tickets à prix fixe (0.1 ETH).
+- Le contrat sélectionne automatiquement un gagnant dès que le quota de participants est atteint ou qu'une durée prédéfinie expire.
+- La cagnotte est transférée au gagnant et un nouveau round s'ouvre immédiatement.
 
 ---
 
@@ -135,6 +137,7 @@ npm run deploy:local
 3. Lancer l’interface web :
 
 ```bash
+# À la racine du projet
 npm run dev
 ```
 
