@@ -6,6 +6,7 @@ import { useWalletModal } from '../context/WalletModalContext';
 import { useLottery } from '../hooks/useLottery';
 import MetaMaskModal from '../components/MetaMaskModal';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 export default function Home() {
   const { provider, signer, account, isConnected, error } = useWallet();
@@ -64,9 +65,16 @@ export default function Home() {
         <div className="hero__summary">
           <div>
             <p className="hero__summary-title">Tentez de remporter la cagnotte&nbsp;!</p>
-            <p className="hero__summary-text">
-              Participez a la loterie blockchain 100% transparente et equitable.
-            </p>
+            <motion.p
+              className="hero__summary-text"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+            >
+              Participez à la loterie blockchain 100% transparente: les tirages se déclenchent
+              automatiquement dès que le quota de billets est atteint ou à la fin du compte à rebours.
+              Chaque ticket augmente vos chances de décrocher le jackpot.
+            </motion.p>
           </div>
 
           <div className="hero__pot-card">
