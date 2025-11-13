@@ -36,19 +36,36 @@ jest.mock('framer-motion', () => {
       whileInView,
       viewport,
       variants,
+      whileHover,
+      whileTap,
+      whileFocus,
+      whileDrag,
+      layout,
+      layoutId,
       ...domProps
     } = props;
     return React.createElement(type, domProps, ...children);
   };
-  return {
-    motion: {
-      div: (props) => createElement('div', props, props.children),
-      h1: (props) => createElement('h1', props, props.children),
-      p: (props) => createElement('p', props, props.children),
-      h2: (props) => createElement('h2', props, props.children),
-      h3: (props) => createElement('h3', props, props.children),
-    },
-  };
+  const domTags = [
+    'div',
+    'section',
+    'header',
+    'footer',
+    'button',
+    'span',
+    'p',
+    'h1',
+    'h2',
+    'h3',
+    'nav',
+  ];
+
+  const motion = domTags.reduce((acc, tag) => {
+    acc[tag] = (props) => createElement(tag, props, props.children);
+    return acc;
+  }, {});
+
+  return { motion };
 });
 
 // Mock useWallet hook
@@ -90,7 +107,7 @@ test('affiche le hero BlockLucky avec les elements cles', () => {
   render(React.createElement(Home));
 
   expect(screen.getByRole('heading', { level: 1, name: /Block\s*Lucky/i })).toBeInTheDocument();
-  expect(screen.getAllByText(/Loterie d'EtherBay/i).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Loterie décentralisée/i)).toBeInTheDocument();
   expect(screen.getByText(/Tentez de remporter la cagnotte/i)).toBeInTheDocument();
   expect(screen.getByText(/Cagnotte actuelle/i)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Se connecter pour participer/i })).toBeInTheDocument();
