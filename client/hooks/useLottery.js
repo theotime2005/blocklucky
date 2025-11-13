@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { formatETH } from '../lib/ethersUtils';
-import { TICKET_PRICE_ETH } from '../lib/constants';
+import { TICKET_PRICE_ETH, CONTRACT_ADDRESS } from '../lib/constants';
 
 export function useLottery(provider, signer, account) {
   const [ticketPrice, setTicketPrice] = useState(null);
@@ -21,10 +21,35 @@ export function useLottery(provider, signer, account) {
   const [commitmentTimestamp, setCommitmentTimestamp] = useState(null);
   const [revealDeadline, setRevealDeadline] = useState(null);
 
+  const resetState = useCallback(() => {
+    setTicketPrice(null);
+    setJackpot(null);
+    setPlayers([]);
+    setPlayersCount(0);
+    setLastWinner(null);
+    setOwner(null);
+    setIsOwner(false);
+    setLotteryPhase('Phase 1: Open for ticket sales');
+    setLotteryInProgress(false);
+    setCommitmentActive(false);
+    setCommitmentTimestamp(null);
+    setRevealDeadline(null);
+  }, []);
+
   // Load contract data
   const loadContractData = useCallback(async () => {
+    const normalizedAddress = (CONTRACT_ADDRESS ?? '').trim();
+
     if (!provider) {
+      resetState();
       setIsLoading(false);
+      return;
+    }
+
+    if (!normalizedAddress) {
+      resetState();
+      setIsLoading(false);
+      setError('Aucune adresse de contrat n\'est configurée.');
       return;
     }
 
@@ -35,38 +60,98 @@ export function useLottery(provider, signer, account) {
       const { getContractWithProvider } = await import('../lib/contract');
       const contract = getContractWithProvider(provider);
 
-      const [price, balance, playersList, winner, contractOwner, phase, inProgress, commitActive, commitTime, deadline] = await Promise.all([
-        contract.ticketPrice(),
-        contract.getBalance(),
-        contract.getPlayers(),
-        contract.getLastWinner(),
-        contract.owner(),
-        contract.currentLotteryPhase(),
-        contract.lotteryInProgress(),
-        contract.commitmentActive(),
-        contract.commitmentTimestamp(),
-        contract.REVEAL_DEADLINE(),
+      // Vérifie qu'un contrat est bien déployé à cette adresse
+      try {
+        const onchainCode = await provider.getCode(normalizedAddress);
+        if (!onchainCode || onchainCode === '0x') {
+          const notFoundError = new Error('Contrat introuvable à cette adresse.');
+          notFoundError.code = 'CONTRACT_NOT_FOUND';
+          throw notFoundError;
+        }
+      } catch (codeError) {
+        if (codeError.code === 'CONTRACT_NOT_FOUND') {
+          throw codeError;
+        }
+        const wrapped = new Error('Impossible de vérifier le contrat.');
+        wrapped.code = 'CONTRACT_CODE_LOOKUP_FAILED';
+        wrapped.originalError = codeError;
+        throw wrapped;
+      }
+
+      const results = await Promise.allSettled([
+        contract.ticketPrice?.(),
+        contract.getBalance?.(),
+        contract.getPlayers?.(),
+        contract.getLastWinner?.(),
+        contract.owner?.(),
+        contract.currentLotteryPhase?.(),
+        contract.lotteryInProgress?.(),
+        contract.commitmentActive?.(),
+        contract.commitmentTimestamp?.(),
+        contract.REVEAL_DEADLINE?.(),
       ]);
 
-      setTicketPrice(price);
-      setJackpot(balance);
-      setPlayers(playersList);
-      setPlayersCount(playersList.length);
-      setLastWinner(winner !== ethers.ZeroAddress ? winner : null);
-      setOwner(contractOwner);
-      setIsOwner(account?.toLowerCase() === contractOwner.toLowerCase());
-      setLotteryPhase(phase);
-      setLotteryInProgress(inProgress);
-      setCommitmentActive(commitActive);
-      setCommitmentTimestamp(commitTime);
-      setRevealDeadline(deadline);
-    } catch (error) {
-      console.error('Error loading contract data:', error);
-      setError(error.message);
+      const firstFailure = results.find((entry) => entry.status === 'rejected');
+      if (firstFailure) {
+        const reason = firstFailure.reason ?? {};
+        if (reason.code === 'BAD_DATA') {
+          const mismatch = new Error('Le contrat déployé ne correspond pas à la version attendue.');
+          mismatch.code = 'CONTRACT_INTERFACE_MISMATCH';
+          mismatch.originalError = reason;
+          throw mismatch;
+        }
+        throw reason;
+      }
+
+      const [
+        price,
+        balance,
+        playersList,
+        winner,
+        contractOwner,
+        phase,
+        inProgress,
+        commitActive,
+        commitTime,
+        deadline,
+      ] = results.map((entry) => (entry.status === 'fulfilled' ? entry.value : null));
+
+      setTicketPrice(price ?? null);
+      setJackpot(balance ?? null);
+      setPlayers(playersList ?? []);
+      setPlayersCount(playersList ? playersList.length : 0);
+      setLastWinner(winner && winner !== ethers.ZeroAddress ? winner : null);
+      setOwner(contractOwner ?? null);
+      setIsOwner(contractOwner ? account?.toLowerCase() === contractOwner.toLowerCase() : false);
+      setLotteryPhase(phase ?? 'Phase 1: Open for ticket sales');
+      setLotteryInProgress(!!inProgress);
+      setCommitmentActive(!!commitActive);
+      setCommitmentTimestamp(commitTime ?? null);
+      setRevealDeadline(deadline ?? null);
+    } catch (loadError) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Error loading contract data:', loadError);
+      }
+
+      resetState();
+
+      switch (loadError.code) {
+        case 'CONTRACT_NOT_FOUND':
+          setError('Le contrat BlockLucky est introuvable à cette adresse. Vérifiez le déploiement.');
+          break;
+        case 'CONTRACT_INTERFACE_MISMATCH':
+          setError('Le contrat déployé ne correspond pas à l’ABI utilisée côté front.');
+          break;
+        case 'CONTRACT_CODE_LOOKUP_FAILED':
+          setError('Impossible de vérifier le contrat sur le RPC configuré.');
+          break;
+        default:
+          setError(loadError.message || 'Impossible de charger les données du contrat.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [provider, account]);
+  }, [provider, account, resetState]);
 
   // Refresh data periodically
   useEffect(() => {

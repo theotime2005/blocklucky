@@ -1,1 +1,4 @@
 import '@testing-library/jest-dom'
+
+process.env.NEXT_PUBLIC_CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x1234567890123456789012345678901234567890';

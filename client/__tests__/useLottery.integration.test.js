@@ -35,7 +35,9 @@ describe('useLottery Hook - Integration Tests', () => {
       resetToPhase1: jest.fn().mockResolvedValue({ hash: '0x789', wait: jest.fn().mockResolvedValue({}) }),
     };
 
-    mockProvider = {};
+    mockProvider = {
+      getCode: jest.fn().mockResolvedValue('0x1234'),
+    };
     mockSigner = {};
 
     const { getContractWithProvider, getContractWithSigner } = require('../lib/contract');
@@ -229,6 +231,7 @@ describe('useLottery Hook - Integration Tests', () => {
   describe('Error Handling', () => {
     it('should handle contract errors gracefully', async () => {
       mockContract.ticketPrice.mockRejectedValue(new Error('Contract not found'));
+      mockProvider.getCode.mockResolvedValue('0x1234');
 
       const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
 
