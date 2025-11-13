@@ -81,8 +81,15 @@ export default function HowItWorks() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.02, x: 8 }}
             >
-              <span>{String(index + 1).padStart(2, '0')}</span>
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: index * 0.1 + 0.2, type: 'spring', stiffness: 200 }}
+              >
+                {String(index + 1).padStart(2, '0')}
+              </motion.span>
               <div>
                 <h2>{step.title}</h2>
                 <p>{step.description}</p>
@@ -102,6 +109,7 @@ export default function HowItWorks() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 + index * 0.08 }}
+                whileHover={{ scale: 1.02, borderColor: 'rgba(124, 92, 255, 0.4)' }}
               >
                 <h3>{faq.question}</h3>
                 <p>{faq.answer}</p>
