@@ -15,6 +15,8 @@
   --color-success: #10b981;
   --color-warning: #ff7e00;
   --color-error: #ff004d;
+  --shadow-primary-default: rgba(103, 76, 255, 0.45);
+  --shadow-primary-strong: rgba(103, 76, 255, 0.7);
 }
 
 * {
@@ -345,12 +347,12 @@ body {
   border: none;
   cursor: pointer;
   transition: transform 0.35s ease, box-shadow 0.35s ease;
-  box-shadow: 0 24px 60px rgba(103, 76, 255, 0.45);
+  box-shadow: 0 24px 60px var(--shadow-primary-default);
 }
 
 .hero__cta-button:hover {
   transform: translateY(-4px);
-  box-shadow: 0 28px 70px rgba(103, 76, 255, 0.6);
+  box-shadow: 0 28px 70px var(--shadow-primary-strong);
 }
 
 .hero__cta-button:focus-visible {
@@ -509,6 +511,13 @@ body {
   transform: translateY(-2px);
 }
 
+.navbar__brand-text {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  display: inline-block;
+}
+
 @media (max-width: 960px) {
   .navbar {
     width: calc(100% - 2.5rem);
@@ -549,11 +558,11 @@ body {
   text-transform: uppercase;
 }
 
-.footer__subtitle {
-  font-size: 0.85rem !important;
-  color: rgba(255, 255, 255, 0.5) !important;
-  text-transform: none !important;
-  letter-spacing: 0.05em !important;
+.footer__content .footer__subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: none;
+  letter-spacing: 0.05em;
 }
 
 .footer__nav {
@@ -1926,4 +1935,26 @@ body {
 .dashboard__insight-card span {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hero__visual,
+  .hero__visual-orb,
+  .hero__visual-ring,
+  .hero__cta-button,
+  .navbar,
+  .navbar__pill,
+  .panel,
+  .panel__cta,
+  .footer__nav a {
+    animation: none !important;
+    transition: none !important;
+  }
 }

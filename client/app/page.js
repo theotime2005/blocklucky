@@ -14,7 +14,6 @@ export default function Home() {
   const { jackpot, playersCount, isLoading } = useLottery(provider, signer, account);
   const [showMetaMaskModal, setShowMetaMaskModal] = useState(false);
   const [timeLabel, setTimeLabel] = useState('');
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const updateClock = () => {
@@ -36,14 +35,6 @@ export default function Home() {
       setShowMetaMaskModal(true);
     }
   }, [error]);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   const handleConnect = async () => {
     openModal();
@@ -215,7 +206,7 @@ export default function Home() {
             <motion.button
               onClick={handleConnect}
               className="hero__cta-button"
-              whileHover={{ scale: 1.05, boxShadow: '0 32px 80px rgba(103, 76, 255, 0.7)' }}
+              whileHover={{ scale: 1.05, boxShadow: '0 32px 80px var(--shadow-primary-strong)' }}
               whileTap={{ scale: 0.95 }}
             >
               Se connecter pour participer

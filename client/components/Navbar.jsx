@@ -27,11 +27,7 @@ export default function Navbar() {
     >
       <motion.div className="navbar__brand">
         <Link href="/">
-          <motion.span
-            whileHover={{ scale: 1.05 }}
-            className="gradient-text"
-            style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.1em' }}
-          >
+          <motion.span whileHover={{ scale: 1.05 }} className="gradient-text navbar__brand-text">
             BlockLucky
           </motion.span>
         </Link>
