@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { formatETH } from '../lib/ethersUtils';
-import { TICKET_PRICE_ETH } from '../lib/constants';
+import { TICKET_PRICE_ETH, CONTRACT_ADDRESS } from '../lib/constants';
 
 const FALLBACK_RPC =
   process.env.NEXT_PUBLIC_PUBLIC_RPC_URL ||
@@ -28,48 +28,108 @@ export function useLottery(provider, signer, account) {
   const [roundActive, setRoundActive] = useState(true);
   const [roundHistory, setRoundHistory] = useState([]);
 
+  const resetState = useCallback(() => {
+    setTicketPrice(null);
+    setJackpot(null);
+    setPlayers([]);
+    setPlayersCount(0);
+    setLastWinner(null);
+    setOwner(null);
+    setIsOwner(false);
+    setLotteryPhase('Phase 1: Collecte des billets');
+    setMaxParticipants(0);
+    setRoundDuration(0);
+    setRoundDeadline(0);
+    setRoundId(1);
+    setRoundActive(false);
+    setRoundHistory([]);
+    setError(null);
+  }, []);
+
   const loadContractData = useCallback(async () => {
+    const normalizedAddress = (CONTRACT_ADDRESS ?? '').trim();
+    const effectiveProvider =
+      provider ??
+      new ethers.JsonRpcProvider(FALLBACK_RPC);
+
+    if (!normalizedAddress) {
+      resetState();
+      setIsLoading(false);
+      setError("Aucune adresse de contrat n'est configurée.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const { getContractWithProvider } = await import('../lib/contract');
-      const effectiveProvider =
-        provider ??
-        new ethers.JsonRpcProvider(FALLBACK_RPC);
+      let onchainCode;
+      try {
+        onchainCode = await effectiveProvider.getCode(normalizedAddress);
+      } catch (codeError) {
+        if (codeError.code === 'CONTRACT_NOT_FOUND') {
+          throw codeError;
+        }
+        const wrapped = new Error('Impossible de vérifier le contrat sur le RPC configuré.');
+        wrapped.code = 'CONTRACT_CODE_LOOKUP_FAILED';
+        wrapped.originalError = codeError;
+        throw wrapped;
+      }
 
+      if (!onchainCode || onchainCode === '0x') {
+        const notFound = new Error('Le contrat BlockLucky est introuvable à cette adresse. Vérifiez le déploiement.');
+        notFound.code = 'CONTRACT_NOT_FOUND';
+        throw notFound;
+      }
+
+      const { getContractWithProvider } = await import('../lib/contract');
       const contract = getContractWithProvider(effectiveProvider);
 
-      const [
-        price,
-        balance,
-        playersList,
-        winner,
-        contractOwner,
-        phase,
-        maxPlayersValue,
-        deadlineValue,
-        durationValue,
-        activeValue,
-        roundIdValue,
-        roundCountValue,
-      ] = await Promise.all([
-        contract.ticketPrice(),
-        contract.getBalance(),
-        contract.getPlayers(),
-        contract.lastWinner(),
-        contract.owner(),
-        contract.currentLotteryPhase(),
-        contract.maxParticipants(),
-        contract.roundDeadline(),
-        contract.roundDuration(),
-        contract.roundActive(),
-        contract.roundId(),
-        contract.getRoundCount(),
+      const resultEntries = await Promise.allSettled([
+        contract.ticketPrice?.(),
+        contract.getBalance?.(),
+        contract.getPlayers?.(),
+        contract.lastWinner?.(),
+        contract.owner?.(),
+        contract.currentLotteryPhase?.(),
+        contract.maxParticipants?.(),
+        contract.roundDeadline?.(),
+        contract.roundDuration?.(),
+        contract.roundActive?.(),
+        contract.roundId?.(),
+        contract.getRoundCount?.(),
       ]);
 
-      const roundCount = Number(roundCountValue);
+      const firstFailure = resultEntries.find((entry) => entry.status === 'rejected');
+      if (firstFailure) {
+        const reason = firstFailure.reason ?? {};
+        if (reason.code === 'BAD_DATA') {
+          const mismatch = new Error("Le contrat déployé ne correspond pas à l’ABI utilisée côté front.");
+          mismatch.code = 'CONTRACT_INTERFACE_MISMATCH';
+          mismatch.originalError = reason;
+          throw mismatch;
+        }
+        throw reason;
+      }
+
+      const getValue = (index) =>
+        resultEntries[index]?.status === 'fulfilled' ? resultEntries[index].value : null;
+
+      const price = getValue(0);
+      const balance = getValue(1);
+      const playersList = getValue(2) ?? [];
+      const winner = getValue(3);
+      const contractOwner = getValue(4);
+      const phase = getValue(5);
+      const maxPlayersValue = getValue(6);
+      const deadlineValue = getValue(7);
+      const durationValue = getValue(8);
+      const activeValue = getValue(9);
+      const roundIdValue = getValue(10);
+      const roundCountValue = getValue(11);
+
       let history = [];
+      const roundCount = Number(roundCountValue ?? 0);
 
       if (roundCount > 0) {
         const fetchCount = Math.min(roundCount, 10);
@@ -88,27 +148,44 @@ export function useLottery(provider, signer, account) {
           .sort((a, b) => b.id - a.id);
       }
 
-      setTicketPrice(price);
-      setJackpot(balance);
+      setTicketPrice(price ?? null);
+      setJackpot(balance ?? null);
       setPlayers(playersList);
       setPlayersCount(playersList.length);
-      setLastWinner(winner !== ethers.ZeroAddress ? winner : null);
-      setOwner(contractOwner);
-      setIsOwner(account ? account.toLowerCase() === contractOwner.toLowerCase() : false);
-      setLotteryPhase(phase);
-      setMaxParticipants(Number(maxPlayersValue));
-      setRoundDeadline(Number(deadlineValue));
-      setRoundDuration(Number(durationValue));
-      setRoundId(Number(roundIdValue));
+      setLastWinner(winner && winner !== ethers.ZeroAddress ? winner : null);
+      setOwner(contractOwner ?? null);
+      setIsOwner(contractOwner ? account?.toLowerCase() === contractOwner.toLowerCase() : false);
+      setLotteryPhase(phase ?? 'Phase 1: Collecte des billets');
+      setMaxParticipants(Number(maxPlayersValue ?? 0));
+      setRoundDeadline(Number(deadlineValue ?? 0));
+      setRoundDuration(Number(durationValue ?? 0));
+      setRoundId(Number(roundIdValue ?? 1));
       setRoundActive(Boolean(activeValue));
       setRoundHistory(history);
     } catch (loadError) {
-      console.error('Error loading contract data:', loadError);
-      setError(loadError.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Error loading contract data:', loadError);
+      }
+
+      resetState();
+
+      switch (loadError.code) {
+        case 'CONTRACT_NOT_FOUND':
+          setError('Le contrat BlockLucky est introuvable à cette adresse. Vérifiez le déploiement.');
+          break;
+        case 'CONTRACT_INTERFACE_MISMATCH':
+          setError("Le contrat déployé ne correspond pas à l’ABI utilisée côté front.");
+          break;
+        case 'CONTRACT_CODE_LOOKUP_FAILED':
+          setError('Impossible de vérifier le contrat sur le RPC configuré.');
+          break;
+        default:
+          setError(loadError.message || 'Impossible de charger les données du contrat.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [provider, account]);
+  }, [provider, account, resetState]);
 
   useEffect(() => {
     loadContractData();

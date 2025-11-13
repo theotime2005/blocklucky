@@ -134,6 +134,13 @@ cd blocks
 npm run deploy:local
 ```
 
+3. Lancer l’interface web :
+
+```bash
+# À la racine du projet
+npm run dev
+```
+
 La sortie de déploiement affichera l'adresse du contrat ; copiez-la dans `client/.env.local` sous la clé `NEXT_PUBLIC_CONTRACT_ADDRESS` pour que l'interface puisse interagir avec le contrat local.
 
 ---

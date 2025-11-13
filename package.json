@@ -15,6 +15,7 @@
   "type": "modules",
   "main": "index.js",
   "scripts": {
+    "dev": "npm run dev --prefix client",
     "ci-blocks": "cd blocks && npm install",
     "ci-client": "cd client && npm install",
     "ci-all": "npm install && run-p --print-label ci-blocks ci-client",
