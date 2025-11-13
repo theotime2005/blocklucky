@@ -5,6 +5,11 @@ import { ethers } from 'ethers';
 import { formatETH } from '../lib/ethersUtils';
 import { TICKET_PRICE_ETH } from '../lib/constants';
 
+const FALLBACK_RPC =
+  process.env.NEXT_PUBLIC_PUBLIC_RPC_URL ||
+  process.env.NEXT_PUBLIC_HARDHAT_RPC_URL ||
+  'http://127.0.0.1:8545';
+
 export function useLottery(provider, signer, account) {
   const [ticketPrice, setTicketPrice] = useState(null);
   const [jackpot, setJackpot] = useState(null);
@@ -15,38 +20,73 @@ export function useLottery(provider, signer, account) {
   const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [lotteryPhase, setLotteryPhase] = useState('Phase 1: Open for ticket sales');
-  const [lotteryInProgress, setLotteryInProgress] = useState(false);
-  const [commitmentActive, setCommitmentActive] = useState(false);
-  const [commitmentTimestamp, setCommitmentTimestamp] = useState(null);
-  const [revealDeadline, setRevealDeadline] = useState(null);
+  const [lotteryPhase, setLotteryPhase] = useState('Phase 1: Collecte des billets');
+  const [maxParticipants, setMaxParticipants] = useState(0);
+  const [roundDuration, setRoundDuration] = useState(0);
+  const [roundDeadline, setRoundDeadline] = useState(0);
+  const [roundId, setRoundId] = useState(1);
+  const [roundActive, setRoundActive] = useState(true);
+  const [roundHistory, setRoundHistory] = useState([]);
 
-  // Load contract data
   const loadContractData = useCallback(async () => {
-    if (!provider) {
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
       const { getContractWithProvider } = await import('../lib/contract');
-      const contract = getContractWithProvider(provider);
+      const effectiveProvider =
+        provider ??
+        new ethers.JsonRpcProvider(FALLBACK_RPC);
 
-      const [price, balance, playersList, winner, contractOwner, phase, inProgress, commitActive, commitTime, deadline] = await Promise.all([
+      const contract = getContractWithProvider(effectiveProvider);
+
+      const [
+        price,
+        balance,
+        playersList,
+        winner,
+        contractOwner,
+        phase,
+        maxPlayersValue,
+        deadlineValue,
+        durationValue,
+        activeValue,
+        roundIdValue,
+        roundCountValue,
+      ] = await Promise.all([
         contract.ticketPrice(),
         contract.getBalance(),
         contract.getPlayers(),
-        contract.getLastWinner(),
+        contract.lastWinner(),
         contract.owner(),
         contract.currentLotteryPhase(),
-        contract.lotteryInProgress(),
-        contract.commitmentActive(),
-        contract.commitmentTimestamp(),
-        contract.REVEAL_DEADLINE(),
+        contract.maxParticipants(),
+        contract.roundDeadline(),
+        contract.roundDuration(),
+        contract.roundActive(),
+        contract.roundId(),
+        contract.getRoundCount(),
       ]);
+
+      const roundCount = Number(roundCountValue);
+      let history = [];
+
+      if (roundCount > 0) {
+        const fetchCount = Math.min(roundCount, 10);
+        const indices = Array.from({ length: fetchCount }, (_, idx) => roundCount - fetchCount + idx);
+        const summaries = await Promise.all(indices.map((index) => contract.getRoundSummary(index)));
+
+        history = summaries
+          .map((summary) => ({
+            id: Number(summary.roundId),
+            winner: summary.winner,
+            prize: formatETH(summary.prize),
+            prizeRaw: summary.prize,
+            ticketCount: Number(summary.ticketCount),
+            completedAt: Number(summary.completedAt),
+          }))
+          .sort((a, b) => b.id - a.id);
+      }
 
       setTicketPrice(price);
       setJackpot(balance);
@@ -54,31 +94,55 @@ export function useLottery(provider, signer, account) {
       setPlayersCount(playersList.length);
       setLastWinner(winner !== ethers.ZeroAddress ? winner : null);
       setOwner(contractOwner);
-      setIsOwner(account?.toLowerCase() === contractOwner.toLowerCase());
+      setIsOwner(account ? account.toLowerCase() === contractOwner.toLowerCase() : false);
       setLotteryPhase(phase);
-      setLotteryInProgress(inProgress);
-      setCommitmentActive(commitActive);
-      setCommitmentTimestamp(commitTime);
-      setRevealDeadline(deadline);
-    } catch (error) {
-      console.error('Error loading contract data:', error);
-      setError(error.message);
+      setMaxParticipants(Number(maxPlayersValue));
+      setRoundDeadline(Number(deadlineValue));
+      setRoundDuration(Number(durationValue));
+      setRoundId(Number(roundIdValue));
+      setRoundActive(Boolean(activeValue));
+      setRoundHistory(history);
+    } catch (loadError) {
+      console.error('Error loading contract data:', loadError);
+      setError(loadError.message);
     } finally {
       setIsLoading(false);
     }
   }, [provider, account]);
 
-  // Refresh data periodically
   useEffect(() => {
     loadContractData();
-    if (provider) {
-      const interval = setInterval(loadContractData, 10000); // Refresh every 10s
-      return () => clearInterval(interval);
-    }
-  }, [provider, loadContractData]);
+    const interval = setInterval(loadContractData, 12000);
+    return () => clearInterval(interval);
+  }, [loadContractData]);
 
-  // Buy ticket
-  const buyTicket = useCallback(async (quantity = 1) => {
+  const buyTicket = useCallback(
+    async (quantity = 1) => {
+      if (!signer) {
+        throw new Error('Please connect your wallet');
+      }
+
+      try {
+        const { getContractWithSigner } = await import('../lib/contract');
+        const contract = getContractWithSigner(signer);
+        const price = await contract.ticketPrice();
+        const totalPrice = price * BigInt(quantity);
+
+        const tx = await contract.buyTicket({ value: totalPrice });
+        return {
+          success: true,
+          tx,
+          hash: tx.hash,
+        };
+      } catch (purchaseError) {
+        console.error('Error buying ticket:', purchaseError);
+        throw purchaseError;
+      }
+    },
+    [signer],
+  );
+
+  const forceDraw = useCallback(async () => {
     if (!signer) {
       throw new Error('Please connect your wallet');
     }
@@ -86,149 +150,66 @@ export function useLottery(provider, signer, account) {
     try {
       const { getContractWithSigner } = await import('../lib/contract');
       const contract = getContractWithSigner(signer);
-      const price = await contract.ticketPrice();
-      const totalPrice = price * BigInt(quantity);
-
-      const tx = await contract.buyTicket({ value: totalPrice });
+      const tx = await contract.forceDraw();
       return {
         success: true,
         tx,
         hash: tx.hash,
       };
-    } catch (error) {
-      console.error('Error buying ticket:', error);
-      throw error;
+    } catch (forceError) {
+      console.error('Error forcing draw:', forceError);
+      throw forceError;
     }
   }, [signer]);
 
-  // Pick winner (owner only)
-  const pickWinner = useCallback(async () => {
-    if (!signer) {
-      throw new Error('Please connect your wallet');
-    }
+  const updateConfiguration = useCallback(
+    async (newTicketPrice, newMaxParticipants, newDuration) => {
+      if (!signer) {
+        throw new Error('Please connect your wallet');
+      }
+      if (!isOwner) {
+        throw new Error('Only the contract owner can update the configuration');
+      }
 
-    if (!isOwner) {
-      throw new Error('Only the contract owner can pick a winner');
-    }
+      try {
+        const { getContractWithSigner } = await import('../lib/contract');
+        const contract = getContractWithSigner(signer);
+        const tx = await contract.updateConfiguration(newTicketPrice, newMaxParticipants, newDuration);
+        return {
+          success: true,
+          tx,
+          hash: tx.hash,
+        };
+      } catch (configError) {
+        console.error('Error updating configuration:', configError);
+        throw configError;
+      }
+    },
+    [signer, isOwner],
+  );
 
-    try {
-      const { getContractWithSigner } = await import('../lib/contract');
-      const contract = getContractWithSigner(signer);
-      const tx = await contract.pickWinner();
-      return {
-        success: true,
-        tx,
-        hash: tx.hash,
-      };
-    } catch (error) {
-      console.error('Error picking winner:', error);
-      throw error;
-    }
-  }, [signer, isOwner]);
-
-  // Get user's tickets
   const getUserTickets = useCallback(async () => {
-    if (!provider || !account) return [];
+    if (!account) return 0;
 
     try {
       const { getContractWithProvider } = await import('../lib/contract');
-      const contract = getContractWithProvider(provider);
+      const effectiveProvider =
+        provider ??
+        new ethers.JsonRpcProvider(FALLBACK_RPC);
+      const contract = getContractWithProvider(effectiveProvider);
       const playersList = await contract.getPlayers();
-
-      const userTickets = playersList.filter(
-        (player) => player.toLowerCase() === account.toLowerCase()
-      ).length;
-
-      return userTickets;
-    } catch (error) {
-      console.error('Error getting user tickets:', error);
+      return playersList.filter((player) => player.toLowerCase() === account.toLowerCase()).length;
+    } catch (ticketsError) {
+      console.error('Error getting user tickets:', ticketsError);
       return 0;
     }
   }, [provider, account]);
 
-  const commitRandomness = useCallback(async (seed) => {
-    if (!signer) {
-      throw new Error('Please connect your wallet');
-    }
-
-    if (!isOwner) {
-      throw new Error('Only the contract owner can commit randomness');
-    }
-
-    try {
-      const { getContractWithSigner } = await import('../lib/contract');
-      const contract = getContractWithSigner(signer);
-
-      const commitment = ethers.keccak256(ethers.toUtf8Bytes(seed));
-      const tx = await contract.commitRandomness(commitment);
-
-      return {
-        success: true,
-        tx,
-        hash: tx.hash,
-        commitment,
-      };
-    } catch (error) {
-      console.error('Error committing randomness:', error);
-      throw error;
-    }
-  }, [signer, isOwner]);
-
-  const revealAndPickWinner = useCallback(async (seed) => {
-    if (!signer) {
-      throw new Error('Please connect your wallet');
-    }
-
-    if (!isOwner) {
-      throw new Error('Only the contract owner can reveal and pick winner');
-    }
-
-    try {
-      const { getContractWithSigner } = await import('../lib/contract');
-      const contract = getContractWithSigner(signer);
-
-      const tx = await contract.revealAndPickWinner(seed);
-
-      return {
-        success: true,
-        tx,
-        hash: tx.hash,
-      };
-    } catch (error) {
-      console.error('Error revealing and picking winner:', error);
-      throw error;
-    }
-  }, [signer, isOwner]);
-
-  const resetToPhase1 = useCallback(async () => {
-    if (!signer) {
-      throw new Error('Please connect your wallet');
-    }
-
-    if (!isOwner) {
-      throw new Error('Only the contract owner can reset');
-    }
-
-    try {
-      const { getContractWithSigner } = await import('../lib/contract');
-      const contract = getContractWithSigner(signer);
-
-      const tx = await contract.resetToPhase1();
-
-      return {
-        success: true,
-        tx,
-        hash: tx.hash,
-      };
-    } catch (error) {
-      console.error('Error resetting to phase 1:', error);
-      throw error;
-    }
-  }, [signer, isOwner]);
-
   return {
     ticketPrice: ticketPrice ? formatETH(ticketPrice) : TICKET_PRICE_ETH,
+    ticketPriceRaw: ticketPrice,
     jackpot: jackpot ? formatETH(jackpot) : '0',
+    jackpotRaw: jackpot,
     players,
     playersCount,
     lastWinner,
@@ -237,15 +218,15 @@ export function useLottery(provider, signer, account) {
     isLoading,
     error,
     lotteryPhase,
-    lotteryInProgress,
-    commitmentActive,
-    commitmentTimestamp,
-    revealDeadline,
+    maxParticipants,
+    roundDuration,
+    roundDeadline,
+    roundId,
+    roundActive,
+    roundHistory,
     buyTicket,
-    pickWinner,
-    commitRandomness,
-    revealAndPickWinner,
-    resetToPhase1,
+    forceDraw,
+    updateConfiguration,
     getUserTickets,
     refreshData: loadContractData,
   };

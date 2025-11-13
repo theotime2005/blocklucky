@@ -160,8 +160,9 @@ export default function Home() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
             >
-              Participez à la loterie blockchain 100% transparente et équitable. Chaque ticket
-              augmente vos chances de gagner le jackpot.
+              Participez à la loterie blockchain 100% transparente : les tirages se déclenchent
+              automatiquement dès que le quota de billets est atteint ou à la fin du compte à rebours.
+              Chaque ticket augmente vos chances de décrocher le jackpot.
             </motion.p>
           </div>
 
@@ -180,11 +181,7 @@ export default function Home() {
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.4 }}
             >
-              {isLoading ? (
-                <span className="shimmer">...</span>
-              ) : (
-                `${jackpot} ETH`
-              )}
+              {isLoading ? <span className="shimmer">...</span> : `${jackpot} ETH`}
             </motion.p>
             <p className="hero__pot-caption">
               {playersCount > 0 ? `${playersCount} participant${playersCount > 1 ? 's' : ''}` : 'Aucun participant'}
@@ -194,10 +191,7 @@ export default function Home() {
 
         <motion.div className="hero__cta" variants={itemVariants}>
           {isConnected ? (
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link href="/dashboard" className="hero__cta-button hero__cta-button--connected">
                 Accéder au tableau de bord
               </Link>

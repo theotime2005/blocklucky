@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { useLottery } from '../hooks/useLottery';
 import { ethers } from 'ethers';
+import { useLottery } from '../hooks/useLottery';
 
 jest.mock('../lib/contract', () => ({
   getContractWithProvider: jest.fn(),
@@ -8,11 +8,12 @@ jest.mock('../lib/contract', () => ({
 }));
 
 describe('useLottery Hook - Integration Tests', () => {
+  const mockAccount = '0x1234567890123456789012345678901234567890';
+  const mockOwner = '0x0987654321098765432109876543210987654321';
+
   let mockProvider;
   let mockSigner;
   let mockContract;
-  const mockAccount = '0x1234567890123456789012345678901234567890';
-  const mockOwner = '0x0987654321098765432109876543210987654321';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -21,18 +22,20 @@ describe('useLottery Hook - Integration Tests', () => {
       ticketPrice: jest.fn().mockResolvedValue(ethers.parseEther('0.1')),
       getBalance: jest.fn().mockResolvedValue(ethers.parseEther('0.5')),
       getPlayers: jest.fn().mockResolvedValue([mockAccount, mockAccount]),
-      getLastWinner: jest.fn().mockResolvedValue(ethers.ZeroAddress),
+      lastWinner: jest.fn().mockResolvedValue(ethers.ZeroAddress),
       owner: jest.fn().mockResolvedValue(mockOwner),
-      currentLotteryPhase: jest.fn().mockResolvedValue('Phase 1: Open for ticket sales'),
-      lotteryInProgress: jest.fn().mockResolvedValue(false),
-      commitmentActive: jest.fn().mockResolvedValue(false),
-      commitmentTimestamp: jest.fn().mockResolvedValue(BigInt(0)),
-      REVEAL_DEADLINE: jest.fn().mockResolvedValue(BigInt(86400)),
+      currentLotteryPhase: jest.fn().mockResolvedValue('Phase 1: Collecte des billets'),
+      maxParticipants: jest.fn().mockResolvedValue(BigInt(5)),
+      roundDeadline: jest.fn().mockResolvedValue(BigInt(Math.floor(Date.now() / 1000) + 600)),
+      roundDuration: jest.fn().mockResolvedValue(BigInt(600)),
+      roundActive: jest.fn().mockResolvedValue(true),
+      roundId: jest.fn().mockResolvedValue(BigInt(1)),
+      getRoundCount: jest.fn().mockResolvedValue(BigInt(0)),
+      getRoundSummary: jest.fn(),
+      getLatestRound: jest.fn(),
       buyTicket: jest.fn().mockResolvedValue({ hash: '0xabc', wait: jest.fn().mockResolvedValue({}) }),
-      pickWinner: jest.fn().mockResolvedValue({ hash: '0xdef', wait: jest.fn().mockResolvedValue({}) }),
-      commitRandomness: jest.fn().mockResolvedValue({ hash: '0x123', wait: jest.fn().mockResolvedValue({}) }),
-      revealAndPickWinner: jest.fn().mockResolvedValue({ hash: '0x456', wait: jest.fn().mockResolvedValue({}) }),
-      resetToPhase1: jest.fn().mockResolvedValue({ hash: '0x789', wait: jest.fn().mockResolvedValue({}) }),
+      forceDraw: jest.fn().mockResolvedValue({ hash: '0xdef', wait: jest.fn().mockResolvedValue({}) }),
+      updateConfiguration: jest.fn().mockResolvedValue({ hash: '0x999', wait: jest.fn().mockResolvedValue({}) }),
     };
 
     mockProvider = {};
@@ -43,241 +46,106 @@ describe('useLottery Hook - Integration Tests', () => {
     getContractWithSigner.mockReturnValue(mockContract);
   });
 
-  describe('Initial State Loading', () => {
-    it('should load all contract data on mount', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+  it('loads contract data on mount', async () => {
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      expect(result.current.ticketPrice).toBe('0.1000');
-      expect(result.current.jackpot).toBe('0.5000');
-      expect(result.current.playersCount).toBe(2);
-      expect(result.current.lotteryPhase).toBe('Phase 1: Open for ticket sales');
-      expect(result.current.lotteryInProgress).toBe(false);
-      expect(result.current.commitmentActive).toBe(false);
-    });
-
-    it('should detect owner correctly', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(true);
-      });
-    });
-
-    it('should detect non-owner correctly', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(false);
-      });
-    });
+    expect(result.current.ticketPrice).toBe('0.1000');
+    expect(result.current.jackpot).toBe('0.5000');
+    expect(result.current.playersCount).toBe(2);
+    expect(result.current.lotteryPhase).toBe('Phase 1: Collecte des billets');
+    expect(result.current.maxParticipants).toBe(5);
+    expect(result.current.roundActive).toBe(true);
   });
 
-  describe('Phase State Management', () => {
-    it('should reflect Phase 1 state correctly', async () => {
-      mockContract.currentLotteryPhase.mockResolvedValue('Phase 1: Open for ticket sales');
-      mockContract.lotteryInProgress.mockResolvedValue(false);
-      mockContract.commitmentActive.mockResolvedValue(false);
-
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.lotteryPhase).toBe('Phase 1: Open for ticket sales');
-        expect(result.current.lotteryInProgress).toBe(false);
-        expect(result.current.commitmentActive).toBe(false);
-      });
-    });
-
-    it('should reflect Phase 2 state after commit', async () => {
-      mockContract.currentLotteryPhase.mockResolvedValue('Phase 2: Commitment active - waiting to reveal');
-      mockContract.lotteryInProgress.mockResolvedValue(true);
-      mockContract.commitmentActive.mockResolvedValue(true);
-
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.lotteryPhase).toContain('Phase 2');
-        expect(result.current.lotteryInProgress).toBe(true);
-        expect(result.current.commitmentActive).toBe(true);
-      });
-    });
-
-    it('should reflect Phase 3 state after reveal', async () => {
-      mockContract.currentLotteryPhase.mockResolvedValue('Phase 3: Reveal complete - winner selected');
-      mockContract.lotteryInProgress.mockResolvedValue(true);
-      mockContract.commitmentActive.mockResolvedValue(false);
-
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.lotteryPhase).toContain('Phase 3');
-        expect(result.current.lotteryInProgress).toBe(true);
-        expect(result.current.commitmentActive).toBe(false);
-      });
-    });
+  it('identifies owner correctly', async () => {
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
+    await waitFor(() => expect(result.current.isOwner).toBe(true));
   });
 
-  describe('Commit-Reveal Functions', () => {
-    it('should commit randomness with valid seed', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(true);
-      });
-
-      const response = await result.current.commitRandomness('test-seed-12345');
-
-      expect(response.success).toBe(true);
-      expect(response.hash).toBe('0x123');
-      expect(mockContract.commitRandomness).toHaveBeenCalledWith(
-        ethers.keccak256(ethers.toUtf8Bytes('test-seed-12345'))
-      );
+  it('loads history when rounds exist', async () => {
+    mockContract.getRoundCount.mockResolvedValue(BigInt(1));
+    mockContract.getRoundSummary.mockResolvedValueOnce({
+      roundId: BigInt(1),
+      winner: mockAccount,
+      prize: ethers.parseEther('0.4'),
+      ticketCount: BigInt(4),
+      completedAt: BigInt(1700000000),
     });
 
-    it('should reveal and pick winner with seed', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(true);
-      });
-
-      const response = await result.current.revealAndPickWinner('test-seed-12345');
-
-      expect(response.success).toBe(true);
-      expect(response.hash).toBe('0x456');
-      expect(mockContract.revealAndPickWinner).toHaveBeenCalledWith('test-seed-12345');
-    });
-
-    it('should reset to Phase 1', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(true);
-      });
-
-      const response = await result.current.resetToPhase1();
-
-      expect(response.success).toBe(true);
-      expect(response.hash).toBe('0x789');
-      expect(mockContract.resetToPhase1).toHaveBeenCalled();
-    });
-
-    it('should throw error when non-owner tries to commit', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(false);
-      });
-
-      await expect(
-        result.current.commitRandomness('test-seed')
-      ).rejects.toThrow('Only the contract owner can commit randomness');
-    });
-
-    it('should throw error when non-owner tries to reveal', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.isOwner).toBe(false);
-      });
-
-      await expect(
-        result.current.revealAndPickWinner('test-seed')
-      ).rejects.toThrow('Only the contract owner can reveal and pick winner');
-    });
+    expect(result.current.roundHistory.length).toBe(1);
+    expect(result.current.roundHistory[0].prize).toBe('0.4000');
   });
 
-  describe('User Ticket Management', () => {
-    it('should count user tickets correctly', async () => {
-      mockContract.getPlayers.mockResolvedValue([
-        mockAccount,
-        mockAccount,
-        '0xOtherAddress',
-        mockAccount,
-      ]);
+  it('buys tickets with signer', async () => {
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      const userTickets = await result.current.getUserTickets();
-      expect(userTickets).toBe(3);
-    });
-
-    it('should return 0 tickets for user with no tickets', async () => {
-      mockContract.getPlayers.mockResolvedValue([
-        '0xOtherAddress1',
-        '0xOtherAddress2',
-      ]);
-
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      const userTickets = await result.current.getUserTickets();
-      expect(userTickets).toBe(0);
-    });
+    const response = await result.current.buyTicket(2);
+    expect(response.success).toBe(true);
+    expect(mockContract.buyTicket).toHaveBeenCalledWith({ value: ethers.parseEther('0.2') });
   });
 
-  describe('Error Handling', () => {
-    it('should handle contract errors gracefully', async () => {
-      mockContract.ticketPrice.mockRejectedValue(new Error('Contract not found'));
+  it('forces draw when requested', async () => {
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
-
-      await waitFor(() => {
-        expect(result.current.error).toBe('Contract not found');
-        expect(result.current.isLoading).toBe(false);
-      });
-    });
-
-    it('should handle missing provider', async () => {
-      const { result } = renderHook(() => useLottery(null, null, null));
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      expect(result.current.ticketPrice).toBe('0.1');
-      expect(result.current.jackpot).toBe('0');
-    });
+    const response = await result.current.forceDraw();
+    expect(response.success).toBe(true);
+    expect(mockContract.forceDraw).toHaveBeenCalled();
   });
 
-  describe('Buy Ticket Function', () => {
-    it('should buy single ticket', async () => {
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+  it('updates configuration for owner', async () => {
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockOwner));
+    await waitFor(() => expect(result.current.isOwner).toBe(true));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
+    const response = await result.current.updateConfiguration(ethers.parseEther('0.2'), 8, 1800);
+    expect(response.success).toBe(true);
+    expect(mockContract.updateConfiguration).toHaveBeenCalledWith(
+      ethers.parseEther('0.2'),
+      8,
+      1800,
+    );
+  });
 
-      const response = await result.current.buyTicket(1);
+  it('counts user tickets correctly', async () => {
+    mockContract.getPlayers.mockResolvedValue([
+      mockAccount,
+      mockAccount,
+      '0xOtherAddress',
+      mockAccount,
+    ]);
 
-      expect(response.success).toBe(true);
-      expect(response.hash).toBe('0xabc');
-      expect(mockContract.buyTicket).toHaveBeenCalled();
-    });
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    it('should calculate correct price for multiple tickets', async () => {
-      mockContract.ticketPrice.mockResolvedValue(ethers.parseEther('0.1'));
+    const tickets = await result.current.getUserTickets();
+    expect(tickets).toBe(3);
+  });
 
-      const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+  it('handles contract errors gracefully', async () => {
+    mockContract.ticketPrice.mockRejectedValue(new Error('Contract not found'));
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
+    const { result } = renderHook(() => useLottery(mockProvider, mockSigner, mockAccount));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      await result.current.buyTicket(3);
+    expect(result.current.error).toBe('Contract not found');
+  });
 
-      const callArgs = mockContract.buyTicket.mock.calls[0][0];
-      expect(callArgs.value).toBe(ethers.parseEther('0.3'));
-    });
+  it('falls back when provider is missing', async () => {
+    mockContract.ticketPrice.mockResolvedValue(ethers.parseEther('0.1'));
+    mockContract.getBalance.mockResolvedValue(ethers.parseEther('0'));
+    mockContract.getRoundCount.mockResolvedValue(BigInt(0));
+    mockContract.getPlayers.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useLottery(null, null, null));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.ticketPrice).toBe('0.1000');
+    expect(result.current.jackpot).toBe('0');
   });
 });
